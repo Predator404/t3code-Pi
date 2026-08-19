@@ -133,6 +133,7 @@ const CURSOR_DRIVER_KIND = ProviderDriverKind.make("cursor");
 const GROK_DRIVER_KIND = ProviderDriverKind.make("grok");
 const OPENCODE_DRIVER_KIND = ProviderDriverKind.make("opencode");
 const OMP_DRIVER_KIND = ProviderDriverKind.make("omp");
+const OMA_DRIVER_KIND = ProviderDriverKind.make("oma");
 
 export const DEFAULT_MODEL = "gpt-5.6-sol";
 
@@ -155,6 +156,7 @@ export const DEFAULT_MODEL_BY_PROVIDER: Partial<Record<ProviderDriverKind, strin
   [GROK_DRIVER_KIND]: "grok-build",
   [OPENCODE_DRIVER_KIND]: "openai/gpt-5",
   [OMP_DRIVER_KIND]: "anthropic/claude-opus-4-8",
+  [OMA_DRIVER_KIND]: "anthropic/claude-opus-4-8",
 };
 
 /** Per-provider text generation model defaults. */
@@ -166,6 +168,7 @@ export const DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER: Partial<
   [CURSOR_DRIVER_KIND]: "composer-2",
   [OPENCODE_DRIVER_KIND]: "openai/gpt-5",
   [OMP_DRIVER_KIND]: "anthropic/claude-haiku-4-5",
+  [OMA_DRIVER_KIND]: "anthropic/claude-haiku-4-5",
 };
 
 export const MODEL_SLUG_ALIASES_BY_PROVIDER: Partial<
@@ -226,4 +229,5 @@ export const PROVIDER_DISPLAY_NAMES: Partial<Record<ProviderDriverKind, string>>
   [GROK_DRIVER_KIND]: "Grok",
   [OPENCODE_DRIVER_KIND]: "OpenCode",
   [OMP_DRIVER_KIND]: "Oh My Pi",
+  [OMA_DRIVER_KIND]: "Oh My Pi Agents",
 };
