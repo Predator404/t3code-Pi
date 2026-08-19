@@ -35,11 +35,30 @@ import {
 } from "../acp/OmpAcpSupport.ts";
 import { ompCredentialStateExists, runOmpVersionCommand } from "../acp/OmpAcpCliProbe.ts";
 
-const OMP_PRESENTATION = {
+export interface OmpBrand {
+  readonly displayName: string;
+  readonly binaryName: string;
+  readonly configDir: string;
+}
+
+/**
+ * Default brand: stock Oh My Pi (`omp`, state under `~/.omp`). The OMA driver
+ * passes its own brand so status/guidance name `oma` and `~/.oma` instead of
+ * misdirecting users to the omp binary/config dir.
+ */
+export const OMP_BRAND: OmpBrand = {
   displayName: "Oh My Pi",
-  showInteractionModeToggle: true,
-  requiresNewThreadForModelChange: false,
-} as const;
+  binaryName: "omp",
+  configDir: "~/.omp",
+};
+
+function presentationFor(brand: OmpBrand) {
+  return {
+    displayName: brand.displayName,
+    showInteractionModeToggle: true,
+    requiresNewThreadForModelChange: false,
+  } as const;
+}
 const EMPTY_CAPABILITIES: ModelCapabilities = createModelCapabilities({
   optionDescriptors: [],
 });
@@ -58,14 +77,16 @@ const OMP_BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
 
 export function buildInitialOmpProviderSnapshot(
   ompSettings: OmpSettings,
+  brand: OmpBrand = OMP_BRAND,
 ): Effect.Effect<ServerProviderDraft> {
   return Effect.gen(function* () {
     const checkedAt = yield* Effect.map(DateTime.now, DateTime.formatIso);
     const models = ompModelsFromSettings(ompSettings.customModels);
+    const presentation = presentationFor(brand);
 
     if (!ompSettings.enabled) {
       return buildServerProvider({
-        presentation: OMP_PRESENTATION,
+        presentation,
         enabled: false,
         checkedAt,
         models,
@@ -74,13 +95,13 @@ export function buildInitialOmpProviderSnapshot(
           version: null,
           status: "warning",
           auth: { status: "unknown" },
-          message: "Oh My Pi is disabled in T3 Code settings.",
+          message: `${brand.displayName} is disabled in T3 Code settings.`,
         },
       });
     }
 
     return buildServerProvider({
-      presentation: OMP_PRESENTATION,
+      presentation,
       enabled: true,
       checkedAt,
       models,
@@ -89,7 +110,7 @@ export function buildInitialOmpProviderSnapshot(
         version: null,
         status: "warning",
         auth: { status: "unknown" },
-        message: "Checking Oh My Pi CLI availability...",
+        message: `Checking ${brand.displayName} CLI availability...`,
       },
     });
   });
@@ -145,6 +166,7 @@ const discoverOmpModelsViaAcp = (
 export const checkOmpProviderStatus = Effect.fn("checkOmpProviderStatus")(function* (
   ompSettings: OmpSettings,
   environment: NodeJS.ProcessEnv = process.env,
+  brand: OmpBrand = OMP_BRAND,
 ): Effect.fn.Return<
   ServerProviderDraft,
   never,
@@ -152,10 +174,11 @@ export const checkOmpProviderStatus = Effect.fn("checkOmpProviderStatus")(functi
 > {
   const checkedAt = DateTime.formatIso(yield* DateTime.now);
   const fallbackModels = ompModelsFromSettings(ompSettings.customModels);
+  const presentation = presentationFor(brand);
 
   if (!ompSettings.enabled) {
     return buildServerProvider({
-      presentation: OMP_PRESENTATION,
+      presentation,
       enabled: false,
       checkedAt,
       models: fallbackModels,
@@ -164,7 +187,7 @@ export const checkOmpProviderStatus = Effect.fn("checkOmpProviderStatus")(functi
         version: null,
         status: "warning",
         auth: { status: "unknown" },
-        message: "Oh My Pi is disabled in T3 Code settings.",
+        message: `${brand.displayName} is disabled in T3 Code settings.`,
       },
     });
   }
@@ -176,11 +199,11 @@ export const checkOmpProviderStatus = Effect.fn("checkOmpProviderStatus")(functi
 
   if (Result.isFailure(versionResult)) {
     const error = versionResult.failure;
-    yield* Effect.logWarning("Oh My Pi CLI health check failed.", {
+    yield* Effect.logWarning(`${brand.displayName} CLI health check failed.`, {
       errorTag: error._tag,
     });
     return buildServerProvider({
-      presentation: OMP_PRESENTATION,
+      presentation,
       enabled: ompSettings.enabled,
       checkedAt,
       models: fallbackModels,
@@ -190,15 +213,15 @@ export const checkOmpProviderStatus = Effect.fn("checkOmpProviderStatus")(functi
         status: "error",
         auth: { status: "unknown" },
         message: isCommandMissingCause(error)
-          ? "Oh My Pi CLI (`omp`) is not installed or not on PATH."
-          : "Failed to execute Oh My Pi CLI health check.",
+          ? `${brand.displayName} CLI (\`${brand.binaryName}\`) is not installed or not on PATH.`
+          : `Failed to execute ${brand.displayName} CLI health check.`,
       },
     });
   }
 
   if (Option.isNone(versionResult.success)) {
     return buildServerProvider({
-      presentation: OMP_PRESENTATION,
+      presentation,
       enabled: ompSettings.enabled,
       checkedAt,
       models: fallbackModels,
@@ -207,7 +230,7 @@ export const checkOmpProviderStatus = Effect.fn("checkOmpProviderStatus")(functi
         version: null,
         status: "error",
         auth: { status: "unknown" },
-        message: "Oh My Pi CLI is installed but timed out while running `omp --version`.",
+        message: `${brand.displayName} CLI is installed but timed out while running \`${brand.binaryName} --version\`.`,
       },
     });
   }
@@ -215,13 +238,16 @@ export const checkOmpProviderStatus = Effect.fn("checkOmpProviderStatus")(functi
   const versionOutput = versionResult.success.value;
   const version = parseGenericCliVersion(`${versionOutput.stdout}\n${versionOutput.stderr}`);
   if (versionOutput.code !== 0) {
-    yield* Effect.logWarning("Oh My Pi CLI version probe exited with a non-zero status.", {
-      exitCode: versionOutput.code,
-      stdoutLength: versionOutput.stdout.length,
-      stderrLength: versionOutput.stderr.length,
-    });
+    yield* Effect.logWarning(
+      `${brand.displayName} CLI version probe exited with a non-zero status.`,
+      {
+        exitCode: versionOutput.code,
+        stdoutLength: versionOutput.stdout.length,
+        stderrLength: versionOutput.stderr.length,
+      },
+    );
     return buildServerProvider({
-      presentation: OMP_PRESENTATION,
+      presentation,
       enabled: ompSettings.enabled,
       checkedAt,
       models: fallbackModels,
@@ -230,7 +256,7 @@ export const checkOmpProviderStatus = Effect.fn("checkOmpProviderStatus")(functi
         version,
         status: "error",
         auth: { status: "unknown" },
-        message: "Oh My Pi CLI is installed but failed to run.",
+        message: `${brand.displayName} CLI is installed but failed to run.`,
       },
     });
   }
@@ -238,7 +264,7 @@ export const checkOmpProviderStatus = Effect.fn("checkOmpProviderStatus")(functi
   const credentialStateExists = yield* ompCredentialStateExists(environment);
   if (!credentialStateExists) {
     return buildServerProvider({
-      presentation: OMP_PRESENTATION,
+      presentation,
       enabled: ompSettings.enabled,
       checkedAt,
       models: fallbackModels,
@@ -247,14 +273,13 @@ export const checkOmpProviderStatus = Effect.fn("checkOmpProviderStatus")(functi
         version,
         status: "error",
         auth: { status: "unauthenticated" },
-        message:
-          "Oh My Pi is installed but has no local credentials (`~/.omp`). Run `omp` to sign in, then retry.",
+        message: `${brand.displayName} is installed but has no local credentials (\`${brand.configDir}\`). Run \`${brand.binaryName}\` to sign in, then retry.`,
       },
     });
   }
 
   return buildServerProvider({
-    presentation: OMP_PRESENTATION,
+    presentation,
     enabled: ompSettings.enabled,
     checkedAt,
     models: fallbackModels,
