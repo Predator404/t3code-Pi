@@ -10,10 +10,6 @@
  * (`getConfigOptions` / `setConfigOption`), so this module is thin: it builds
  * the spawn input, fixes the auth method, and exposes model read/select
  * helpers built on the config-option surface.
- *
- * This is the interface Phase 2 (adapter, provider snapshot, text generation)
- * codes against — its exported signatures are frozen.
- *
  * @module OmpAcpSupport
  */
 import { type OmpSettings } from "@t3tools/contracts";

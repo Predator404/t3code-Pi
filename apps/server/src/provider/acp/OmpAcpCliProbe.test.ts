@@ -74,4 +74,15 @@ describe.runIf(process.env.T3_OMP_ACP_PROBE === "1")("Oh My Pi ACP CLI probe", (
       yield* runtime.setConfigOption("model", currentModel);
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
+
+  it.effect("completes a prompt turn against real `omp acp` with a normal stop reason", () =>
+    Effect.gen(function* () {
+      const runtime = yield* makeProbeRuntime;
+      yield* runtime.start();
+      const response = yield* runtime.prompt({
+        prompt: [{ type: "text", text: "Reply with exactly the single word: PONG" }],
+      });
+      expect(response.stopReason).toBe("end_turn");
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  );
 });
