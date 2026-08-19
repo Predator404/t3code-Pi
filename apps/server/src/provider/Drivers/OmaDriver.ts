@@ -33,6 +33,7 @@ import {
   buildInitialOmpProviderSnapshot,
   checkOmpProviderStatus,
   enrichOmpSnapshot,
+  type OmpBrand,
 } from "../Layers/OmpProvider.ts";
 import { ProviderEventLoggers } from "../Layers/ProviderEventLoggers.ts";
 import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
@@ -59,6 +60,12 @@ const DRIVER_KIND = ProviderDriverKind.make("oma");
 const DEFAULT_DISPLAY_NAME = "Oh My Pi Agents";
 /** OMA's config-root marker; keeps its broker/sessions/creds under `~/.oma`. */
 const OMA_CONFIG_DIR = ".oma";
+/** OMA's brand: names `oma`/`~/.oma` in status guidance instead of omp's. */
+const OMA_BRAND: OmpBrand = {
+  displayName: DEFAULT_DISPLAY_NAME,
+  binaryName: "oma",
+  configDir: "~/.oma",
+};
 const UPDATE = makeStaticProviderMaintenanceResolver(
   makeManualOnlyProviderMaintenanceCapabilities({
     provider: DRIVER_KIND,
@@ -80,7 +87,7 @@ export type OmaDriverEnv =
 const withInstanceIdentity =
   (input: {
     readonly instanceId: ProviderInstance["instanceId"];
-    readonly displayName: string;
+    readonly displayName: string | undefined;
     readonly accentColor: string | undefined;
     readonly continuationGroupKey: string;
   }) =>
@@ -88,7 +95,7 @@ const withInstanceIdentity =
     ...snapshot,
     instanceId: input.instanceId,
     driver: DRIVER_KIND,
-    displayName: input.displayName,
+    ...(input.displayName ? { displayName: input.displayName } : {}),
     ...(input.accentColor ? { accentColor: input.accentColor } : {}),
     continuation: { groupKey: input.continuationGroupKey },
   });
@@ -114,16 +121,17 @@ export const OmaDriver: ProviderDriver<OmaSettings, OmaDriverEnv> = {
       // Default the config root to `~/.oma` unless the user pinned one. This
       // reaches both the spawned `oma acp` and the credential probe, so status
       // reflects OMA's own auth state rather than stock omp's.
-      const processEnv = baseEnv.PI_CONFIG_DIR
-        ? baseEnv
-        : { ...baseEnv, PI_CONFIG_DIR: OMA_CONFIG_DIR };
+      const processEnv =
+        baseEnv.PI_CONFIG_DIR !== undefined
+          ? baseEnv
+          : { ...baseEnv, PI_CONFIG_DIR: OMA_CONFIG_DIR };
       const continuationIdentity = defaultProviderContinuationIdentity({
         driverKind: DRIVER_KIND,
         instanceId,
       });
       const stampIdentity = withInstanceIdentity({
         instanceId,
-        displayName: displayName ?? DEFAULT_DISPLAY_NAME,
+        displayName,
         accentColor,
         continuationGroupKey: continuationIdentity.continuationKey,
       });
@@ -140,7 +148,7 @@ export const OmaDriver: ProviderDriver<OmaSettings, OmaDriverEnv> = {
       });
       const textGeneration = yield* makeOmpTextGeneration(effectiveConfig, processEnv);
 
-      const checkProvider = checkOmpProviderStatus(effectiveConfig, processEnv).pipe(
+      const checkProvider = checkOmpProviderStatus(effectiveConfig, processEnv, OMA_BRAND).pipe(
         Effect.map(stampIdentity),
         Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
         Effect.provideService(FileSystem.FileSystem, fileSystem),
@@ -154,7 +162,9 @@ export const OmaDriver: ProviderDriver<OmaSettings, OmaDriverEnv> = {
         streamSettings: snapshotSettings.streamSettings,
         haveSettingsChanged: haveProviderSnapshotSettingsChanged,
         initialSnapshot: (settings) =>
-          buildInitialOmpProviderSnapshot(settings.provider).pipe(Effect.map(stampIdentity)),
+          buildInitialOmpProviderSnapshot(settings.provider, OMA_BRAND).pipe(
+            Effect.map(stampIdentity),
+          ),
         checkProvider,
         enrichSnapshot: ({ settings, snapshot: currentSnapshot, publishSnapshot }) =>
           enrichOmpSnapshot({
