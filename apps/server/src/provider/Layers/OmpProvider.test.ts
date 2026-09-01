@@ -6,7 +6,11 @@ import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import { OmpSettings } from "@t3tools/contracts";
 
-import { buildInitialOmpProviderSnapshot, checkOmpProviderStatus } from "./OmpProvider.ts";
+import {
+  buildInitialOmpProviderSnapshot,
+  buildOmpDiscoveredModelsFromCatalog,
+  checkOmpProviderStatus,
+} from "./OmpProvider.ts";
 
 const decodeOmpSettings = Schema.decodeSync(OmpSettings);
 
@@ -46,6 +50,28 @@ describe("buildInitialOmpProviderSnapshot", () => {
       expect(snapshot.requiresNewThreadForModelChange).toBe(false);
     }),
   );
+});
+
+describe("buildOmpDiscoveredModelsFromCatalog", () => {
+  it("marks the session's current model as the default, not the alphabetical first", () => {
+    // Regression: OMA's catalog is sorted, so models[0] is the deprecated
+    // claude-3-5-sonnet-20240620. Without an explicit default the web client
+    // picks models[0] for new threads and every turn 404s. The current model
+    // (opus-4-8) must carry isDefault so it is chosen instead.
+    const models = buildOmpDiscoveredModelsFromCatalog(
+      ["anthropic/claude-3-5-sonnet-20240620", "anthropic/claude-opus-4-8"],
+      "anthropic/claude-opus-4-8",
+    );
+    expect(models.map((model) => ({ slug: model.slug, isDefault: model.isDefault }))).toEqual([
+      { slug: "anthropic/claude-3-5-sonnet-20240620", isDefault: undefined },
+      { slug: "anthropic/claude-opus-4-8", isDefault: true },
+    ]);
+  });
+
+  it("marks no default when the current model is absent from the catalog", () => {
+    const models = buildOmpDiscoveredModelsFromCatalog(["anthropic/claude-opus-4-8"], "x/y");
+    expect(models.every((model) => model.isDefault === undefined)).toBe(true);
+  });
 });
 
 it.layer(NodeServices.layer)("checkOmpProviderStatus", (it) => {

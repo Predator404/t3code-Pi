@@ -145,6 +145,7 @@ export const OmaDriver: ProviderDriver<OmaSettings, OmaDriverEnv> = {
         environment: processEnv,
         ...(eventLoggers.native ? { nativeEventLogger: eventLoggers.native } : {}),
         instanceId,
+        provider: DRIVER_KIND,
       });
       const textGeneration = yield* makeOmpTextGeneration(effectiveConfig, processEnv);
 

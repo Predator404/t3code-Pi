@@ -69,7 +69,7 @@ import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogg
 
 const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.fromJsonString(Schema.Unknown));
 
-const PROVIDER = ProviderDriverKind.make("omp");
+const DEFAULT_PROVIDER = ProviderDriverKind.make("omp");
 const OMP_RESUME_VERSION = 1 as const;
 
 function encodeJsonStringForDiagnostics(input: unknown): string | undefined {
@@ -82,6 +82,12 @@ export interface OmpAdapterLiveOptions {
   readonly nativeEventLogPath?: string;
   readonly nativeEventLogger?: EventNdjsonLogger;
   readonly instanceId?: ProviderInstanceId;
+  /**
+   * Driver kind this adapter identifies as. Defaults to `omp`; the OMA driver
+   * passes `oma` so session/event provider stamping and `startSession`
+   * validation match its registered instance instead of the shared `omp` base.
+   */
+  readonly provider?: ProviderDriverKind;
 }
 
 interface PendingApproval {
@@ -162,6 +168,7 @@ function selectAutoApprovedPermissionOption(
 
 export function makeOmpAdapter(ompSettings: OmpSettings, options?: OmpAdapterLiveOptions) {
   return Effect.gen(function* () {
+    const PROVIDER = options?.provider ?? DEFAULT_PROVIDER;
     const boundInstanceId = options?.instanceId ?? ProviderInstanceId.make("omp");
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;

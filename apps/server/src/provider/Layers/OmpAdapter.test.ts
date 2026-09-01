@@ -859,6 +859,42 @@ it.layer(ompAdapterTestLayer)("OmpAdapterLive", (it) => {
     }),
   );
 
+  it.effect("adopts the configured driver kind so the OMA driver can reuse this adapter", () =>
+    Effect.gen(function* () {
+      // The OMA driver reuses makeOmpAdapter but registers as `oma`; the adapter
+      // must identify as `oma` so startSession validation and session stamping
+      // match its instance instead of the shared `omp` base.
+      const wrapperPath = yield* Effect.promise(() => makeMockOmpWrapper());
+      const adapter = yield* makeTestAdapter(wrapperPath, {
+        provider: ProviderDriverKind.make("oma"),
+        instanceId: ProviderInstanceId.make("oma"),
+      });
+      const threadId = ThreadId.make("oma-provider-identity");
+
+      assert.equal(adapter.provider, "oma");
+
+      const session = yield* adapter.startSession({
+        threadId,
+        provider: ProviderDriverKind.make("oma"),
+        cwd: process.cwd(),
+        runtimeMode: "full-access",
+      });
+      assert.equal(session.provider, "oma");
+
+      const mismatch = yield* Effect.flip(
+        adapter.startSession({
+          threadId: ThreadId.make("oma-provider-identity-mismatch"),
+          provider: ProviderDriverKind.make("omp"),
+          cwd: process.cwd(),
+          runtimeMode: "full-access",
+        }),
+      );
+      assert.equal(mismatch._tag, "ProviderAdapterValidationError");
+
+      yield* adapter.stopSession(threadId);
+    }),
+  );
+
   it.effect("rejects sendTurn with empty input and no attachments", () =>
     Effect.gen(function* () {
       const threadId = ThreadId.make("omp-empty-turn");

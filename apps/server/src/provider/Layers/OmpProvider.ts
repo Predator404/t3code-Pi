@@ -29,6 +29,7 @@ import {
   type ProviderMaintenanceCapabilities,
 } from "../providerMaintenance.ts";
 import {
+  currentOmpModelIdFromSessionSetup,
   makeOmpAcpRuntime,
   ompModelCatalogFromSessionSetup,
   OMP_DEFAULT_MODEL_ID,
@@ -123,8 +124,9 @@ function ompModelsFromSettings(
   return providerModelsFromSettings(builtInModels, customModels ?? [], EMPTY_CAPABILITIES);
 }
 
-function buildOmpDiscoveredModelsFromCatalog(
+export function buildOmpDiscoveredModelsFromCatalog(
   catalog: ReadonlyArray<string>,
+  defaultModelId?: string | undefined,
 ): ReadonlyArray<ServerProviderModel> {
   const seen = new Set<string>();
   return catalog
@@ -138,6 +140,7 @@ function buildOmpDiscoveredModelsFromCatalog(
         slug,
         name: slug,
         isCustom: false,
+        ...(defaultModelId && slug === defaultModelId ? { isDefault: true } : {}),
         capabilities: EMPTY_CAPABILITIES,
       };
     })
@@ -160,6 +163,7 @@ const discoverOmpModelsViaAcp = (
     const started = yield* acp.start();
     return buildOmpDiscoveredModelsFromCatalog(
       ompModelCatalogFromSessionSetup(started.sessionSetupResult),
+      currentOmpModelIdFromSessionSetup(started.sessionSetupResult),
     );
   }).pipe(Effect.scoped);
 
